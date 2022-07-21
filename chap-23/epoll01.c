@@ -21,6 +21,7 @@ int main(int argc, char **argv) {
 
     listen_fd = tcp_nonblocking_server_listen(SERV_PORT);
 
+    // 创建epoll实例
     efd = epoll_create1(0);
     if (efd == -1) {
         error(1, errno, "epoll create failed");
@@ -28,39 +29,47 @@ int main(int argc, char **argv) {
 
     event.data.fd = listen_fd;
     event.events = EPOLLIN | EPOLLET;
+    // 给listen_fd添加监听事件
     if (epoll_ctl(efd, EPOLL_CTL_ADD, listen_fd, &event) == -1) {
         error(1, errno, "epoll_ctl add listen fd failed");
     }
 
     /* Buffer where events are returned */
+    // 为返回的event数组分配内存
     events = calloc(MAXEVENTS, sizeof(event));
 
     while (1) {
         n = epoll_wait(efd, events, MAXEVENTS, -1);
         printf("epoll_wait wakeup\n");
+        // 遍历返回成功的event数组
         for (i = 0; i < n; i++) {
+            // 处理错误event
             if ((events[i].events & EPOLLERR) ||
                 (events[i].events & EPOLLHUP) ||
                 (!(events[i].events & EPOLLIN))) {
                 fprintf(stderr, "epoll error\n");
                 close(events[i].data.fd);
                 continue;
-            } else if (listen_fd == events[i].data.fd) {
+            } else if (listen_fd == events[i].data.fd) { // 监听套接字有event发生 - 新建连接
                 struct sockaddr_storage ss;
                 socklen_t slen = sizeof(ss);
+                // 创建连接
                 int fd = accept(listen_fd, (struct sockaddr *) &ss, &slen);
                 if (fd < 0) {
                     error(1, errno, "accept failed");
                 } else {
+                    // 把连接套接字设置为非阻塞
                     make_nonblocking(fd);
                     event.data.fd = fd;
                     event.events = EPOLLIN | EPOLLET; //edge-triggered
+                    // 把连接套接字注册到epoll实例中
                     if (epoll_ctl(efd, EPOLL_CTL_ADD, fd, &event) == -1) {
                         error(1, errno, "epoll_ctl add connection fd failed");
                     }
                 }
                 continue;
             } else {
+                // 处理连接套接字上的事件 -- 读连接套接字上的数据
                 socket_fd = events[i].data.fd;
                 printf("get event on socket fd == %d \n", socket_fd);
                 while (1) {
