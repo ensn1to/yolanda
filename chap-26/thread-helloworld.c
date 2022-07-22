@@ -17,9 +17,11 @@ int main(int c, char **v) {
     pthread_t tid1;
     pthread_t tid2;
 
+    // 创建线程
     pthread_create(&tid1, NULL, thread_run, &calculator);
     pthread_create(&tid2, NULL, thread_run, &calculator);
 
+    // 等待子线程执行完毕，回收子线程
     pthread_join(tid1, NULL);
     pthread_join(tid2, NULL);
 
