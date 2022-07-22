@@ -42,12 +42,15 @@ void child_run(int fd) {
 
 
 void sigchld_handler(int sig) {
+    // waitpid回收已终止子进程
+    // WNOHANG： 即使还有未终止的子进程也不要阻塞在waitpid上。注意这里不可以使用wait，因为wait函数在有未终止子进程的情况下，没有办法不阻塞
     while (waitpid(-1, 0, WNOHANG) > 0);
     return;
 }
 
 int main(int c, char **v) {
     int listener_fd = tcp_server_listen(SERV_PORT);
+    // 信号处理函数，用来回收子进程资源
     signal(SIGCHLD, sigchld_handler);
     while (1) {
         struct sockaddr_storage ss;
@@ -58,12 +61,12 @@ int main(int c, char **v) {
             exit(1);
         }
 
-        if (fork() == 0) {
-            close(listener_fd);
+        if (fork() == 0) { 
+            close(listener_fd);  // 子进程关闭fork出来的监听套接字
             child_run(fd);
             exit(0);
         } else {
-            close(fd);
+            close(fd); // 父进程关闭链接套接字
         }
     }
 
